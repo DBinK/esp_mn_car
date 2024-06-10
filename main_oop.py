@@ -34,6 +34,7 @@ class BluetoothController:
         self.ble_client = BLESimplePeripheral(self.ble, name=name)
         self.car_sw = 0
         self.rotate_sw = 0
+        self.rotate_mode = 1
         self.ble_client.on_write(self.on_rx)
         self.motion = motion.RobotController()
 
@@ -77,10 +78,16 @@ class BluetoothController:
                     self.motion.move(700, -200, 400)
 
                 if hex_data[5] == '08':  # b
-                    self.motion.move(500, -600, -100)
+                    if self.rotate_mode == 0 :
+                        self.motion.move(0, 0, -100)
+                    else:
+                        self.motion.move(500, -600, -100)
                     
                 if hex_data[5] == '10':  # a
-                    self.motion.move(500, 600, 100)
+                    if self.rotate_mode == 0 :
+                        self.motion.move(0, 0, 100)
+                    else:
+                        self.motion.move(500, 600, 100)
                     
                 if hex_data[5] == '02':  # select
                 
@@ -99,16 +106,13 @@ class BluetoothController:
                     print(f"开关小陀螺: {self.rotate_sw}")
                     
                 if hex_data[5] == '01':  # start
-
-                    print("停止接收主机数据")
                     
-                    if self.car_sw == 0 :
-                        self.car_sw = 1 
+                    if self.rotate_mode == 0 :
+                        self.rotate_mode = 1 
                     else:
-                        self.car_sw = 0
-                        self.motion.stop()
+                        self.rotate_mode = 0
                     
-                    print(f"开关电机控制: {self.car_sw}")
+                    print(f"B/A键转弯的模式: {self.rotate_mode}")
                     """ ble_client.on_write(None)
                     sys.exit() """
                     
