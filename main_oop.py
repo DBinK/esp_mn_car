@@ -34,13 +34,13 @@ class BluetoothController:
         self.ble_client = BLESimplePeripheral(self.ble, name=name)
         self.car_sw = 0
         self.rotate_sw = 0
-        self.rotate_mode = 1
+        self.rotate_mode = 0
         self.ble_client.on_write(self.on_rx)
         self.motion = motion.RobotController()
 
     def on_rx(self, text):
 
-        go_speed = 800
+        go_speed = 900
         turn_speed = 500
         
         try:        
@@ -72,22 +72,22 @@ class BluetoothController:
                     self.motion.go_right(go_speed)
                     
                 if hex_data[5] == '04':  # y
-                    self.motion.move(700, 200, -400)
+                    self.motion.move(700, 200, -500)
                     
                 if hex_data[5] == '20':  # x
-                    self.motion.move(700, -200, 400)
+                    self.motion.move(700, -200, 500)
 
                 if hex_data[5] == '08':  # b
                     if self.rotate_mode == 0 :
-                        self.motion.move(0, 0, -100)
-                    else:
-                        self.motion.move(500, -600, -100)
+                        self.motion.move(0, 0, -500)
+                    elif self.rotate_mode == 1 :
+                        self.motion.move(500, -600, -150)
                     
                 if hex_data[5] == '10':  # a
                     if self.rotate_mode == 0 :
-                        self.motion.move(0, 0, 100)
-                    else:
-                        self.motion.move(500, 600, 100)
+                        self.motion.move(0, 0, 500)
+                    elif self.rotate_mode == 1 :
+                        self.motion.move(500, 600, 150)
                     
                 if hex_data[5] == '02':  # select
                 

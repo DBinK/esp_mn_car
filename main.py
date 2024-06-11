@@ -1,141 +1,136 @@
-import bluetooth,ble_simple_peripheral,time  # type: ignore # noqa: E401
-import sys
+import bluetooth
+import machine
+from neopixel import NeoPixel
+from ble_simple_peripheral import BLESimplePeripheral
 import motion
 
+class LEDController:
+    def __init__(self, pin_number, pixel_count):
+        self.pin = machine.Pin(pin_number, machine.Pin.OUT)
+        self.np = NeoPixel(self.pin, pixel_count)
+        self.colors = [
+            (255, 0, 0),  # 红色
+            (255, 165, 0),  # 橙色
+            (255, 255, 0),  # 黄色
+            (0, 255, 0),  # 绿色
+            (0, 255, 255),  # 青色
+            (0, 0, 255),  # 蓝色
+            (128, 0, 128),  # 紫色
+            (255, 255, 255),  # 白色
+        ]
+        self.timer = machine.Timer(2)
+        self.timer.init(period=500, mode=machine.Timer.PERIODIC, callback=self.rgb_flow)
 
-from machine import Pin, Timer
-from neopixel import NeoPixel  # type: ignore
+    def rgb_flow(self, _):
+        global colors
+        for i in range(len(self.colors)):
+            self.np[i] = self.colors[i]
+        self.np.write()
+        self.colors.append(self.colors.pop(0))
 
-pin = Pin(12, Pin.OUT)
-np = NeoPixel(pin, 8)
+class BluetoothController:
+    def __init__(self, name='WPi-Car'):
+        self.ble = bluetooth.BLE()
+        self.ble_client = BLESimplePeripheral(self.ble, name=name)
+        self.car_sw = 0
+        self.rotate_sw = 0
+        self.rotate_mode = 0
+        self.ble_client.on_write(self.on_rx)
+        self.motion = motion.RobotController()
 
-colors = [
-    (255,   0,   0),  # 红色
-    (255, 165,   0),  # 橙色
-    (255, 255,   0),  # 黄色
-    (  0, 255,   0),  # 绿色
-    (  0, 255, 255),  # 青色
-    (  0,   0, 255),  # 蓝色
-    (128,   0, 128),  # 紫色
-    (255, 255, 255),  # 白色
-    # (0, 0, 0)
-]
+    def on_rx(self, text):
 
-# RGB流动彩虹模式
-def rgb_flow(tim2):
-
-    global colors
-
-    for i in range(8):
-        np[i] = colors[i]
-
-    np.write()
-
-    colors.append(colors.pop(0))
-    
-
-tim2 = Timer(2)
-tim2.init(period=500, mode=Timer.PERIODIC, callback=rgb_flow)
-
-#构建BLE对象
-ble = bluetooth.BLE()
-
-#构建从机对象,广播名称为WalnutPi，名称最多支持8个字符。
-ble_client = ble_simple_peripheral.BLESimplePeripheral(ble,name='WPi-Car')
-
-car_sw = 0
-rotate_sw = 0
-
-# 接收到主机发来的蓝牙数据处理函数
-def on_rx(text):
-    global car_sw, rotate_sw
-
-    go_speed = 800
-    turn_speed = 500
-    
-    try:        
-        print("RX:",text) #打印接收到的数据,数据格式为字节数组。
+        go_speed = 900
+        turn_speed = 500
         
-        #回传数据给主机。
-        ble_client.send("I got: ") 
-        ble_client.send(text)
-        
-        hex_data = ['{:02x}'.format(byte) for byte in text]
-        
-        print(hex_data)
-        
-        if len(hex_data) > 6:
+        try:        
+            # print("RX:", text) #打印接收到的数据
             
-            if (hex_data[6] == '00' or hex_data[7] == '00') and rotate_sw == 0 and car_sw == 0:
-                motion.stop()
+            # 回传数据给主机。
+            self.ble_client.send("I got: ")
+            self.ble_client.send(text)
+            
+            hex_data = ['{:02x}'.format(byte) for byte in text]
+            
+            print(hex_data)
+            
+            if len(hex_data) > 6:
+                
+                if (hex_data[6] == '00' or hex_data[7] == '00') and self.rotate_sw == 0 and self.car_sw == 0:
+                    self.motion.stop()
 
-            """ if hex_data[6] != '00':
-                car_sw = 1 """
-
-            if hex_data[6] == '01':  # up
-                motion.go_forward(go_speed)
-                
-            if hex_data[6] == '02':  # down
-                motion.go_backward(go_speed)
-                
-            if hex_data[6] == '04':  # left
-                motion.go_left(go_speed)
-                
-            if hex_data[6] == '08':  # right
-                motion.go_right(go_speed)
-                
-            if hex_data[5] == '04':  # y
-                motion.move(700, 200, -400)
-                
-            if hex_data[5] == '20':  # x
-                motion.move(700, -200, 400)
-
-            if hex_data[5] == '08':  # b
-                motion.move(500, -600, -100)
-                
-            if hex_data[5] == '10':  # a
-                motion.move(500, 600,  100)
-                
-            if hex_data[5] == '02':  # select
-                
-                if rotate_sw == 0:
-                    rotate_sw = 1 
-                    motion.turn_right(go_speed)
-
-                elif rotate_sw == 1:
-                    rotate_sw = 2
-                    motion.turn_left(go_speed)
+                if hex_data[6] == '01':  # up
+                    self.motion.go_forward(go_speed)
                     
-                else:
-                    rotate_sw = 0
-                    motion.stop()
+                if hex_data[6] == '02':  # down
+                    self.motion.go_backward(go_speed)
                     
-                print(f"开关小陀螺: {rotate_sw}")
+                if hex_data[6] == '04':  # left
+                    self.motion.go_left(go_speed)
+                    
+                if hex_data[6] == '08':  # right
+                    self.motion.go_right(go_speed)
+                    
+                if hex_data[5] == '04':  # y
+                    self.motion.move(700, 200, -500)
+                    
+                if hex_data[5] == '20':  # x
+                    self.motion.move(700, -200, 500)
+
+                if hex_data[5] == '08':  # b
+                    if self.rotate_mode == 0 :
+                        self.motion.move(0, 0, -500)
+                    elif self.rotate_mode == 1 :
+                        self.motion.move(500, -600, -200)
+                    
+                if hex_data[5] == '10':  # a
+                    if self.rotate_mode == 0 :
+                        self.motion.move(0, 0, 500)
+                    elif self.rotate_mode == 1 :
+                        self.motion.move(500, 600, 200)
+                    
+                if hex_data[5] == '02':  # select
                 
-            if hex_data[5] == '01':  # start
+                    if self.rotate_sw == 0:
+                        self.rotate_sw = 1 
+                        self.motion.turn_right(go_speed)
 
-                print("停止接收主机数据")
-                
-                if car_sw == 0 :
-                    car_sw = 1 
-                else:
-                    car_sw = 0
-                    motion.stop()
-                
-                print(f"开关电机控制: {car_sw}")
-                """ ble_client.on_write(None)
-                sys.exit() """
+                    elif self.rotate_sw == 1:
+                        self.rotate_sw = 2
+                        self.motion.turn_left(go_speed)
+                        
+                    else:
+                        self.rotate_sw = 0
+                        self.motion.stop()
+                        
+                    print(f"开关小陀螺: {self.rotate_sw}")
+                    
+                if hex_data[5] == '01':  # start
+                    
+                    if self.rotate_mode == 0 :
+                        self.rotate_mode = 1 
+                    else:
+                        self.rotate_mode = 0
+                    
+                    print(f"B/A键转弯的模式: {self.rotate_mode}")
+                    """ ble_client.on_write(None)
+                    sys.exit() """
+                    
+        except (OSError, RuntimeError) as e:
+            print(f"错误原因：{e}")
+            # ble_client.on_write(None)
+            # sys.exit()
 
+class WalnutPiCar:
+    def __init__(self):
+        self.led_controller = LEDController(12, 8)
+        self.bluetooth_controller = BluetoothController()
 
-    except (OSError, RuntimeError) as e:
-    
-        print(f"错误原因：{e}")
-        # ble_client.on_write(None)
-        sys.exit()
+    def main(self):
+        # 主循环或初始化代码可以放在这里
+        pass
 
-#从机接收回调函数，收到数据会进入on_rx函数。
-ble_client.on_write(on_rx)
+if __name__ == "__main__":
+    wpicar = WalnutPiCar()
+    wpicar.main()
 
-# while True:
-#     
-#     time.sleep(0.5)
